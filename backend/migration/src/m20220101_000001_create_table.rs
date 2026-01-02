@@ -162,11 +162,127 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
+        // Create catalogue_endpoints table
+        manager
+            .create_table(
+                Table::create()
+                    .table(CatalogueEndpoints::Table)
+                    .if_not_exists()
+                    .col(ColumnDef::new(CatalogueEndpoints::Id).uuid().not_null().primary_key())
+                    .col(ColumnDef::new(CatalogueEndpoints::Name).string().not_null())
+                    .col(ColumnDef::new(CatalogueEndpoints::EndpointType).string().not_null())
+                    .col(ColumnDef::new(CatalogueEndpoints::Description).string())
+                    .col(ColumnDef::new(CatalogueEndpoints::Address).string())
+                    .col(ColumnDef::new(CatalogueEndpoints::Metadata).json_binary())
+                    .col(ColumnDef::new(CatalogueEndpoints::CreatedAt).timestamp_with_time_zone().not_null())
+                    .col(ColumnDef::new(CatalogueEndpoints::UpdatedAt).timestamp_with_time_zone().not_null())
+                    .to_owned(),
+            )
+            .await?;
+
+        // Create catalogue_license_keys table
+        manager
+            .create_table(
+                Table::create()
+                    .table(CatalogueLicenseKeys::Table)
+                    .if_not_exists()
+                    .col(ColumnDef::new(CatalogueLicenseKeys::Id).uuid().not_null().primary_key())
+                    .col(ColumnDef::new(CatalogueLicenseKeys::Name).string().not_null())
+                    .col(ColumnDef::new(CatalogueLicenseKeys::LicenseType).string().not_null())
+                    .col(ColumnDef::new(CatalogueLicenseKeys::KeyValue).string())
+                    .col(ColumnDef::new(CatalogueLicenseKeys::FilePath).string())
+                    .col(ColumnDef::new(CatalogueLicenseKeys::FileName).string())
+                    .col(ColumnDef::new(CatalogueLicenseKeys::FileSize).big_integer())
+                    .col(ColumnDef::new(CatalogueLicenseKeys::StorageType).string().not_null())
+                    .col(ColumnDef::new(CatalogueLicenseKeys::Description).string())
+                    .col(ColumnDef::new(CatalogueLicenseKeys::ExpiresAt).timestamp_with_time_zone())
+                    .col(ColumnDef::new(CatalogueLicenseKeys::CreatedAt).timestamp_with_time_zone().not_null())
+                    .col(ColumnDef::new(CatalogueLicenseKeys::UpdatedAt).timestamp_with_time_zone().not_null())
+                    .to_owned(),
+            )
+            .await?;
+
+        // Create catalogue_software_versions table
+        manager
+            .create_table(
+                Table::create()
+                    .table(CatalogueSoftwareVersions::Table)
+                    .if_not_exists()
+                    .col(ColumnDef::new(CatalogueSoftwareVersions::Id).uuid().not_null().primary_key())
+                    .col(ColumnDef::new(CatalogueSoftwareVersions::Name).string().not_null())
+                    .col(ColumnDef::new(CatalogueSoftwareVersions::Version).string().not_null())
+                    .col(ColumnDef::new(CatalogueSoftwareVersions::Description).string())
+                    .col(ColumnDef::new(CatalogueSoftwareVersions::ReleaseDate).timestamp_with_time_zone())
+                    .col(ColumnDef::new(CatalogueSoftwareVersions::EndOfLife).timestamp_with_time_zone())
+                    .col(ColumnDef::new(CatalogueSoftwareVersions::Metadata).json_binary())
+                    .col(ColumnDef::new(CatalogueSoftwareVersions::CreatedAt).timestamp_with_time_zone().not_null())
+                    .col(ColumnDef::new(CatalogueSoftwareVersions::UpdatedAt).timestamp_with_time_zone().not_null())
+                    .to_owned(),
+            )
+            .await?;
+
+        // Create catalogue_encryption_algorithms table
+        manager
+            .create_table(
+                Table::create()
+                    .table(CatalogueEncryptionAlgorithms::Table)
+                    .if_not_exists()
+                    .col(ColumnDef::new(CatalogueEncryptionAlgorithms::Id).uuid().not_null().primary_key())
+                    .col(ColumnDef::new(CatalogueEncryptionAlgorithms::Name).string().not_null())
+                    .col(ColumnDef::new(CatalogueEncryptionAlgorithms::AlgorithmType).string().not_null())
+                    .col(ColumnDef::new(CatalogueEncryptionAlgorithms::KeySize).integer())
+                    .col(ColumnDef::new(CatalogueEncryptionAlgorithms::Description).string())
+                    .col(ColumnDef::new(CatalogueEncryptionAlgorithms::Standard).string())
+                    .col(ColumnDef::new(CatalogueEncryptionAlgorithms::Metadata).json_binary())
+                    .col(ColumnDef::new(CatalogueEncryptionAlgorithms::CreatedAt).timestamp_with_time_zone().not_null())
+                    .col(ColumnDef::new(CatalogueEncryptionAlgorithms::UpdatedAt).timestamp_with_time_zone().not_null())
+                    .to_owned(),
+            )
+            .await?;
+
+        // Create catalogue_relations table
+        manager
+            .create_table(
+                Table::create()
+                    .table(CatalogueRelations::Table)
+                    .if_not_exists()
+                    .col(ColumnDef::new(CatalogueRelations::Id).uuid().not_null().primary_key())
+                    .col(ColumnDef::new(CatalogueRelations::SourceType).string().not_null())
+                    .col(ColumnDef::new(CatalogueRelations::SourceId).uuid().not_null())
+                    .col(ColumnDef::new(CatalogueRelations::TargetType).string().not_null())
+                    .col(ColumnDef::new(CatalogueRelations::TargetId).uuid().not_null())
+                    .col(ColumnDef::new(CatalogueRelations::RelationType).string().not_null())
+                    .col(ColumnDef::new(CatalogueRelations::Description).string())
+                    .col(ColumnDef::new(CatalogueRelations::CreatedAt).timestamp_with_time_zone().not_null())
+                    .to_owned(),
+            )
+            .await?;
+
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // Drop tables in reverse order (respecting foreign key constraints)
+        manager
+            .drop_table(Table::drop().table(CatalogueRelations::Table).to_owned())
+            .await?;
+
+        manager
+            .drop_table(Table::drop().table(CatalogueEncryptionAlgorithms::Table).to_owned())
+            .await?;
+
+        manager
+            .drop_table(Table::drop().table(CatalogueSoftwareVersions::Table).to_owned())
+            .await?;
+
+        manager
+            .drop_table(Table::drop().table(CatalogueLicenseKeys::Table).to_owned())
+            .await?;
+
+        manager
+            .drop_table(Table::drop().table(CatalogueEndpoints::Table).to_owned())
+            .await?;
+
         manager
             .drop_table(Table::drop().table(RgpdBreaches::Table).to_owned())
             .await?;
@@ -279,4 +395,75 @@ enum RgpdBreaches {
     SubjectsNotified,
     CreatedAt,
     UpdatedAt,
+}
+
+#[derive(DeriveIden)]
+enum CatalogueEndpoints {
+    Table,
+    Id,
+    Name,
+    EndpointType,
+    Description,
+    Address,
+    Metadata,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(DeriveIden)]
+enum CatalogueLicenseKeys {
+    Table,
+    Id,
+    Name,
+    LicenseType,
+    KeyValue,
+    FilePath,
+    FileName,
+    FileSize,
+    StorageType,
+    Description,
+    ExpiresAt,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(DeriveIden)]
+enum CatalogueSoftwareVersions {
+    Table,
+    Id,
+    Name,
+    Version,
+    Description,
+    ReleaseDate,
+    EndOfLife,
+    Metadata,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(DeriveIden)]
+enum CatalogueEncryptionAlgorithms {
+    Table,
+    Id,
+    Name,
+    AlgorithmType,
+    KeySize,
+    Description,
+    Standard,
+    Metadata,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(DeriveIden)]
+enum CatalogueRelations {
+    Table,
+    Id,
+    SourceType,
+    SourceId,
+    TargetType,
+    TargetId,
+    RelationType,
+    Description,
+    CreatedAt,
 }

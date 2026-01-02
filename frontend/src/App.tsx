@@ -7,6 +7,7 @@ import Entities from './pages/Entities'
 import RGPDRegister from './pages/RGPDRegister'
 import RGPDRequests from './pages/RGPDRequests'
 import RGPDBreaches from './pages/RGPDBreaches'
+import Catalogue from './pages/Catalogue'
 import Layout from './components/Layout'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -49,6 +50,7 @@ function App() {
       >
         <Route index element={<Dashboard />} />
         <Route path="entities" element={<Entities />} />
+        <Route path="catalogue" element={<Catalogue />} />
         <Route path="rgpd/register" element={<RGPDRegister />} />
         <Route path="rgpd/requests" element={<RGPDRequests />} />
         <Route path="rgpd/breaches" element={<RGPDBreaches />} />

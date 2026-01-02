@@ -1,6 +1,6 @@
 use actix_web::{web, HttpResponse, HttpRequest};
 use sea_orm::{DatabaseConnection, EntityTrait, ColumnTrait, QueryFilter, Set, IntoActiveModel, QueryOrder, Order, ActiveModelTrait};
-use crate::rgpd::models::*;
+use crate::entities::rgpd::models::*;
 use crate::middleware::get_current_user_id;
 use crate::entities_orm::user_entity::{Entity as UserEntityEntity, Column as UserEntityColumn};
 use crate::entities_orm::register_entry::{Entity as RegisterEntryEntity, Column as RegisterEntryColumn, ActiveModel as RegisterEntryActiveModel};
@@ -774,3 +774,4 @@ pub async fn update_breach(
         updated_at: breach.updated_at,
     }))
 }
+

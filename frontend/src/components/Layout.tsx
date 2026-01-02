@@ -20,6 +20,7 @@ export default function Layout() {
         <div className="nav-links">
           <Link to="/">Dashboard</Link>
           <Link to="/entities">Entités</Link>
+          <Link to="/catalogue">Catalogue</Link>
           <Link to="/rgpd/register">Registre RGPD</Link>
           <Link to="/rgpd/requests">Demandes d'accès</Link>
           <Link to="/rgpd/breaches">Écarts</Link>

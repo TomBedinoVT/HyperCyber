@@ -1,5 +1,4 @@
 pub mod handlers;
 pub mod models;
-pub mod rgpd;
-pub mod catalogue;
+pub mod storage;
 

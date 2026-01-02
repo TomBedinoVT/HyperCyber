@@ -1,5 +1,6 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
+use serde_json;
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
 
@@ -237,6 +238,132 @@ pub mod breach {
     impl ActiveModelBehavior for ActiveModel {}
 }
 
+// Endpoint entity
+pub mod endpoint {
+    use super::*;
+    
+    #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
+    #[sea_orm(table_name = "catalogue_endpoints")]
+    pub struct Model {
+        #[sea_orm(primary_key)]
+        pub id: Uuid,
+        pub name: String,
+        pub endpoint_type: String,
+        pub description: Option<String>,
+        pub address: Option<String>,
+        pub metadata: Option<serde_json::Value>,
+        pub created_at: DateTime<Utc>,
+        pub updated_at: DateTime<Utc>,
+    }
+
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    pub enum Relation {}
+
+    impl ActiveModelBehavior for ActiveModel {}
+}
+
+// LicenseKey entity
+pub mod license_key {
+    use super::*;
+    
+    #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
+    #[sea_orm(table_name = "catalogue_license_keys")]
+    pub struct Model {
+        #[sea_orm(primary_key)]
+        pub id: Uuid,
+        pub name: String,
+        pub license_type: String,
+        pub key_value: Option<String>,
+        pub file_path: Option<String>,
+        pub file_name: Option<String>,
+        pub file_size: Option<i64>,
+        pub storage_type: String,
+        pub description: Option<String>,
+        pub expires_at: Option<DateTime<Utc>>,
+        pub created_at: DateTime<Utc>,
+        pub updated_at: DateTime<Utc>,
+    }
+
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    pub enum Relation {}
+
+    impl ActiveModelBehavior for ActiveModel {}
+}
+
+// SoftwareVersion entity
+pub mod software_version {
+    use super::*;
+    
+    #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
+    #[sea_orm(table_name = "catalogue_software_versions")]
+    pub struct Model {
+        #[sea_orm(primary_key)]
+        pub id: Uuid,
+        pub name: String,
+        pub version: String,
+        pub description: Option<String>,
+        pub release_date: Option<DateTime<Utc>>,
+        pub end_of_life: Option<DateTime<Utc>>,
+        pub metadata: Option<serde_json::Value>,
+        pub created_at: DateTime<Utc>,
+        pub updated_at: DateTime<Utc>,
+    }
+
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    pub enum Relation {}
+
+    impl ActiveModelBehavior for ActiveModel {}
+}
+
+// EncryptionAlgorithm entity
+pub mod encryption_algorithm {
+    use super::*;
+    
+    #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
+    #[sea_orm(table_name = "catalogue_encryption_algorithms")]
+    pub struct Model {
+        #[sea_orm(primary_key)]
+        pub id: Uuid,
+        pub name: String,
+        pub algorithm_type: String,
+        pub key_size: Option<i32>,
+        pub description: Option<String>,
+        pub standard: Option<String>,
+        pub metadata: Option<serde_json::Value>,
+        pub created_at: DateTime<Utc>,
+        pub updated_at: DateTime<Utc>,
+    }
+
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    pub enum Relation {}
+
+    impl ActiveModelBehavior for ActiveModel {}
+}
+
+// CatalogueRelation entity
+pub mod catalogue_relation {
+    use super::*;
+    
+    #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
+    #[sea_orm(table_name = "catalogue_relations")]
+    pub struct Model {
+        #[sea_orm(primary_key)]
+        pub id: Uuid,
+        pub source_type: String,
+        pub source_id: Uuid,
+        pub target_type: String,
+        pub target_id: Uuid,
+        pub relation_type: String,
+        pub description: Option<String>,
+        pub created_at: DateTime<Utc>,
+    }
+
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    pub enum Relation {}
+
+    impl ActiveModelBehavior for ActiveModel {}
+}
+
 // Type aliases for easier use
 pub use user::Entity as User;
 pub use entity::Entity as EntityModel;
@@ -244,3 +371,8 @@ pub use user_entity::Entity as UserEntity;
 pub use register_entry::Entity as RegisterEntry;
 pub use access_request::Entity as AccessRequest;
 pub use breach::Entity as Breach;
+pub use endpoint::Entity as Endpoint;
+pub use license_key::Entity as LicenseKey;
+pub use software_version::Entity as SoftwareVersion;
+pub use encryption_algorithm::Entity as EncryptionAlgorithm;
+pub use catalogue_relation::Entity as CatalogueRelation;

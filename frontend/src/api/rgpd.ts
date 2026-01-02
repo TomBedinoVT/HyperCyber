@@ -48,36 +48,40 @@ export interface Breach {
 }
 
 export const rgpdApi = {
-  // Register
+  // Register - New routes with entity_id in path
   getRegister: async (entityId?: string): Promise<RegisterEntry[]> => {
-    const params = entityId ? { entity_id: entityId } : {}
-    const response = await apiClient.get<RegisterEntry[]>('/rgpd/register', { params })
+    if (entityId) {
+      const response = await apiClient.get<RegisterEntry[]>(`/entities/${entityId}/rgpd/register`)
+      return response.data
+    }
+    // Fallback to old route for backward compatibility
+    const response = await apiClient.get<RegisterEntry[]>('/rgpd/register')
     return response.data
   },
 
   addToRegister: async (entityId: string, data: Partial<RegisterEntry>): Promise<RegisterEntry> => {
-    const response = await apiClient.post<RegisterEntry>('/rgpd/register', data, {
-      params: { entity_id: entityId },
-    })
+    const response = await apiClient.post<RegisterEntry>(`/entities/${entityId}/rgpd/register`, data)
     return response.data
   },
 
   updateRegisterEntry: async (id: string, data: Partial<RegisterEntry>): Promise<RegisterEntry> => {
+    // Use old route for updates (entity_id not needed in path for updates)
     const response = await apiClient.put<RegisterEntry>(`/rgpd/register/${id}`, data)
     return response.data
   },
 
   // Access Requests
   listAccessRequests: async (entityId?: string): Promise<AccessRequest[]> => {
-    const params = entityId ? { entity_id: entityId } : {}
-    const response = await apiClient.get<AccessRequest[]>('/rgpd/access-requests', { params })
+    if (entityId) {
+      const response = await apiClient.get<AccessRequest[]>(`/entities/${entityId}/rgpd/access-requests`)
+      return response.data
+    }
+    const response = await apiClient.get<AccessRequest[]>('/rgpd/access-requests')
     return response.data
   },
 
   createAccessRequest: async (entityId: string, data: Partial<AccessRequest>): Promise<AccessRequest> => {
-    const response = await apiClient.post<AccessRequest>('/rgpd/access-requests', data, {
-      params: { entity_id: entityId },
-    })
+    const response = await apiClient.post<AccessRequest>(`/entities/${entityId}/rgpd/access-requests`, data)
     return response.data
   },
 
@@ -93,15 +97,16 @@ export const rgpdApi = {
 
   // Breaches
   listBreaches: async (entityId?: string): Promise<Breach[]> => {
-    const params = entityId ? { entity_id: entityId } : {}
-    const response = await apiClient.get<Breach[]>('/rgpd/breaches', { params })
+    if (entityId) {
+      const response = await apiClient.get<Breach[]>(`/entities/${entityId}/rgpd/breaches`)
+      return response.data
+    }
+    const response = await apiClient.get<Breach[]>('/rgpd/breaches')
     return response.data
   },
 
   createBreach: async (entityId: string, data: Partial<Breach>): Promise<Breach> => {
-    const response = await apiClient.post<Breach>('/rgpd/breaches', data, {
-      params: { entity_id: entityId },
-    })
+    const response = await apiClient.post<Breach>(`/entities/${entityId}/rgpd/breaches`, data)
     return response.data
   },
 
