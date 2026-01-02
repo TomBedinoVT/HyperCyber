@@ -1,14 +1,17 @@
 use actix_web::{web, HttpResponse, HttpRequest};
 use actix_multipart::Multipart;
 use sea_orm::{DatabaseConnection, EntityTrait, ColumnTrait, QueryFilter, Set, IntoActiveModel, QueryOrder, Order, ActiveModelTrait};
+use futures_util::TryStreamExt;
 use crate::entities::catalogue::models::*;
+use crate::entities::catalogue::storage::{Storage, LocalStorage, S3Storage};
+use crate::config::Config;
 use crate::middleware::get_current_user_id;
 use crate::entities_orm::{
     endpoint::{Entity as EndpointEntity, ActiveModel as EndpointActiveModel},
     license_key::{Entity as LicenseKeyEntity, ActiveModel as LicenseKeyActiveModel},
     software_version::{Entity as SoftwareVersionEntity, ActiveModel as SoftwareVersionActiveModel},
     encryption_algorithm::{Entity as EncryptionAlgorithmEntity, ActiveModel as EncryptionAlgorithmActiveModel},
-    catalogue_relation::{Entity as CatalogueRelationEntity, ActiveModel as CatalogueRelationActiveModel},
+    catalogue_relation::{Entity as CatalogueRelationEntity, ActiveModel as CatalogueRelationActiveModel, Column as CatalogueRelationColumn},
 };
 use uuid::Uuid;
 use chrono::Utc;
@@ -296,20 +299,117 @@ pub async fn create_license_key(
 }
 
 pub async fn upload_license_key_file(
-    _db: web::Data<DatabaseConnection>,
+    db: web::Data<DatabaseConnection>,
+    config: web::Data<Config>,
     req: HttpRequest,
     path: web::Path<Uuid>,
-    _payload: Multipart,
+    mut payload: Multipart,
 ) -> Result<HttpResponse, actix_web::Error> {
     let _user_id = get_current_user_id(&req)
         .ok_or_else(|| actix_web::error::ErrorUnauthorized("Not authenticated"))?;
-    let _license_key_id = path.into_inner();
+    let license_key_id = path.into_inner();
 
-    // TODO: Implémenter l'upload de fichier avec le storage
-    // Pour l'instant, on retourne une erreur
-    Ok(HttpResponse::NotImplemented().json(serde_json::json!({
-        "error": "File upload not yet implemented"
-    })))
+    // Vérifier que la clé de licence existe
+    let license_key = LicenseKeyEntity::find_by_id(license_key_id)
+        .one(db.get_ref())
+        .await
+        .map_err(|e| {
+            log::error!("Database error: {}", e);
+            actix_web::error::ErrorInternalServerError("Database error")
+        })?;
+
+    let license_key = match license_key {
+        Some(k) => k,
+        None => return Ok(HttpResponse::NotFound().json(serde_json::json!({
+            "error": "License key not found"
+        }))),
+    };
+
+    // Vérifier que le type est "file"
+    if license_key.license_type != "file" {
+        return Ok(HttpResponse::BadRequest().json(serde_json::json!({
+            "error": "License key type must be 'file'"
+        })));
+    }
+
+    // Créer le storage selon la configuration
+    let storage: Box<dyn Storage> = if config.storage_type == "s3" {
+        let s3_storage = S3Storage::new(
+            config.s3_bucket.clone().unwrap_or_else(|| "default".to_string()),
+            config.s3_region.clone(),
+            config.s3_endpoint.clone(),
+            config.s3_access_key_id.clone(),
+            config.s3_secret_access_key.clone(),
+        ).await;
+        Box::new(s3_storage)
+    } else {
+        Box::new(LocalStorage::new(config.storage_local_path.clone()))
+    };
+
+    // Traiter le multipart
+    let mut file_data: Option<Vec<u8>> = None;
+    let mut file_name: Option<String> = None;
+
+    while let Some(mut field) = payload.try_next().await.map_err(|e| {
+        log::error!("Multipart error: {}", e);
+        actix_web::error::ErrorBadRequest("Invalid multipart data")
+    })? {
+        if field.name() == "file" {
+            let mut bytes = Vec::new();
+            while let Some(chunk) = field.try_next().await.map_err(|e| {
+                log::error!("Chunk error: {}", e);
+                actix_web::error::ErrorInternalServerError("Error reading file")
+            })? {
+                bytes.extend_from_slice(&chunk);
+            }
+            file_data = Some(bytes);
+            file_name = field.content_disposition().get_filename().map(|s| s.to_string());
+        }
+    }
+
+    let file_data = file_data.ok_or_else(|| {
+        actix_web::error::ErrorBadRequest("No file provided")
+    })?;
+
+    let file_name = file_name.unwrap_or_else(|| "license.key".to_string());
+    let file_size = file_data.len() as i64;
+
+    // Sauvegarder le fichier
+    let file_path = storage.save_file(&file_data, &file_name, license_key_id).await
+        .map_err(|e| {
+            log::error!("Storage error: {}", e);
+            actix_web::error::ErrorInternalServerError("Failed to save file")
+        })?;
+
+    // Mettre à jour la clé de licence
+    let mut license_key: LicenseKeyActiveModel = license_key.into_active_model();
+    license_key.file_path = Set(Some(file_path));
+    license_key.file_name = Set(Some(file_name));
+    license_key.file_size = Set(Some(file_size));
+    license_key.storage_type = Set(config.storage_type.clone());
+    license_key.updated_at = Set(Utc::now());
+
+    let license_key = license_key.update(db.get_ref())
+        .await
+        .map_err(|e| {
+            log::error!("Database error: {}", e);
+            actix_web::error::ErrorInternalServerError("Database error")
+        })?;
+
+    Ok(HttpResponse::Ok().json(LicenseKey {
+        id: license_key.id,
+        name: license_key.name,
+        license_type: license_key.license_type,
+        key_value: license_key.key_value,
+        file_path: license_key.file_path,
+        file_name: license_key.file_name,
+        file_size: license_key.file_size,
+        storage_type: license_key.storage_type,
+        description: license_key.description,
+        expires_at: license_key.expires_at,
+        created_at: license_key.created_at,
+        updated_at: license_key.updated_at,
+    }))
 }
 
 // ========== Software Versions ==========
@@ -462,7 +562,7 @@ pub async fn create_encryption_algorithm(
     }))
 }
 
-// ========== Catalogue Relations ==========
+  // ========== Catalogue Relations ==========
 
 pub async fn create_catalogue_relation(
     db: web::Data<DatabaseConnection>,
@@ -471,6 +571,26 @@ pub async fn create_catalogue_relation(
 ) -> Result<HttpResponse, actix_web::Error> {
     let _user_id = get_current_user_id(&req)
         .ok_or_else(|| actix_web::error::ErrorUnauthorized("Not authenticated"))?;
+
+    // Vérifier que la relation n'existe pas déjà
+    let existing = CatalogueRelationEntity::find()
+        .filter(CatalogueRelationColumn::SourceType.eq(&body.source_type))
+        .filter(CatalogueRelationColumn::SourceId.eq(body.source_id))
+        .filter(CatalogueRelationColumn::TargetType.eq(&body.target_type))
+        .filter(CatalogueRelationColumn::TargetId.eq(body.target_id))
+        .filter(CatalogueRelationColumn::RelationType.eq(&body.relation_type))
+        .one(db.get_ref())
+        .await
+        .map_err(|e| {
+            log::error!("Database error: {}", e);
+            actix_web::error::ErrorInternalServerError("Database error")
+        })?;
+
+    if existing.is_some() {
+        return Ok(HttpResponse::Conflict().json(serde_json::json!({
+            "error": "Relation already exists"
+        })));
+    }
 
     let now = Utc::now();
     let relation = CatalogueRelationActiveModel {
@@ -502,5 +622,102 @@ pub async fn create_catalogue_relation(
         description: relation.description,
         created_at: relation.created_at,
     }))
+}
+
+pub async fn list_catalogue_relations(
+    db: web::Data<DatabaseConnection>,
+    req: HttpRequest,
+    query: web::Query<serde_json::Value>,
+) -> Result<HttpResponse, actix_web::Error> {
+    let _user_id = get_current_user_id(&req)
+        .ok_or_else(|| actix_web::error::ErrorUnauthorized("Not authenticated"))?;
+
+    let source_type: Option<String> = query.get("source_type")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    let source_id: Option<String> = query.get("source_id")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    let target_type: Option<String> = query.get("target_type")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    let target_id: Option<String> = query.get("target_id")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
+    let mut query_builder = CatalogueRelationEntity::find();
+
+    if let Some(st) = source_type {
+        query_builder = query_builder.filter(CatalogueRelationColumn::SourceType.eq(st));
+    }
+    if let Some(sid) = source_id {
+        if let Ok(uuid) = Uuid::parse_str(&sid) {
+            query_builder = query_builder.filter(CatalogueRelationColumn::SourceId.eq(uuid));
+        }
+    }
+    if let Some(tt) = target_type {
+        query_builder = query_builder.filter(CatalogueRelationColumn::TargetType.eq(tt));
+    }
+    if let Some(tid) = target_id {
+        if let Ok(uuid) = Uuid::parse_str(&tid) {
+            query_builder = query_builder.filter(CatalogueRelationColumn::TargetId.eq(uuid));
+        }
+    }
+
+    let relations = query_builder
+        .order_by(CatalogueRelationColumn::CreatedAt, Order::Desc)
+        .all(db.get_ref())
+        .await
+        .map_err(|e| {
+            log::error!("Database error: {}", e);
+            actix_web::error::ErrorInternalServerError("Database error")
+        })?;
+
+    let relations: Vec<CatalogueRelation> = relations.into_iter().map(|r| CatalogueRelation {
+        id: r.id,
+        source_type: r.source_type,
+        source_id: r.source_id,
+        target_type: r.target_type,
+        target_id: r.target_id,
+        relation_type: r.relation_type,
+        description: r.description,
+        created_at: r.created_at,
+    }).collect();
+
+    Ok(HttpResponse::Ok().json(relations))
+}
+
+pub async fn delete_catalogue_relation(
+    db: web::Data<DatabaseConnection>,
+    req: HttpRequest,
+    path: web::Path<Uuid>,
+) -> Result<HttpResponse, actix_web::Error> {
+    let _user_id = get_current_user_id(&req)
+        .ok_or_else(|| actix_web::error::ErrorUnauthorized("Not authenticated"))?;
+    let relation_id = path.into_inner();
+
+    let relation = CatalogueRelationEntity::find_by_id(relation_id)
+        .one(db.get_ref())
+        .await
+        .map_err(|e| {
+            log::error!("Database error: {}", e);
+            actix_web::error::ErrorInternalServerError("Database error")
+        })?;
+
+    if relation.is_none() {
+        return Ok(HttpResponse::NotFound().json(serde_json::json!({
+            "error": "Relation not found"
+        })));
+    }
+
+    CatalogueRelationEntity::delete_by_id(relation_id)
+        .exec(db.get_ref())
+        .await
+        .map_err(|e| {
+            log::error!("Database error: {}", e);
+            actix_web::error::ErrorInternalServerError("Database error")
+        })?;
+
+    Ok(HttpResponse::NoContent().finish())
 }
 

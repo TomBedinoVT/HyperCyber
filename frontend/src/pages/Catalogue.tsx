@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { catalogueApi, Endpoint, LicenseKey, SoftwareVersion, EncryptionAlgorithm } from '../api/catalogue'
+import { catalogueApi, Endpoint, LicenseKey, SoftwareVersion, EncryptionAlgorithm, CatalogueRelation } from '../api/catalogue'
 import './Catalogue.css'
 
 type CatalogueTab = 'endpoints' | 'license-keys' | 'software-versions' | 'encryption-algorithms'
@@ -142,12 +142,7 @@ function EndpointsTab({ queryClient }: { queryClient: any }) {
 
       <div className="items-list">
         {endpoints?.map((endpoint) => (
-          <div key={endpoint.id} className="item-card">
-            <h3>{endpoint.name}</h3>
-            <p><strong>Type:</strong> {endpoint.endpoint_type}</p>
-            {endpoint.address && <p><strong>Adresse:</strong> {endpoint.address}</p>}
-            {endpoint.description && <p>{endpoint.description}</p>}
-          </div>
+          <EndpointCard key={endpoint.id} endpoint={endpoint} queryClient={queryClient} />
         ))}
         {endpoints?.length === 0 && <p>Aucun endpoint trouvé</p>}
       </div>
@@ -161,6 +156,7 @@ function LicenseKeysTab({ queryClient }: { queryClient: any }) {
   const [licenseType, setLicenseType] = useState('string')
   const [keyValue, setKeyValue] = useState('')
   const [description, setDescription] = useState('')
+  const [uploadingFile, setUploadingFile] = useState<string | null>(null)
 
   const { data: licenseKeys, isLoading } = useQuery({
     queryKey: ['catalogue-license-keys'],
@@ -254,8 +250,39 @@ function LicenseKeysTab({ queryClient }: { queryClient: any }) {
             {key.license_type === 'string' && key.key_value && (
               <p><strong>Clé:</strong> {key.key_value.substring(0, 50)}...</p>
             )}
-            {key.license_type === 'file' && key.file_name && (
-              <p><strong>Fichier:</strong> {key.file_name}</p>
+            {key.license_type === 'file' && (
+              <div>
+                {key.file_name ? (
+                  <p><strong>Fichier:</strong> {key.file_name} ({key.file_size ? `${(key.file_size / 1024).toFixed(2)} KB` : 'N/A'})</p>
+                ) : (
+                  <div>
+                    <p>Aucun fichier uploadé</p>
+                    <input
+                      type="file"
+                      id={`file-upload-${key.id}`}
+                      style={{ display: 'none' }}
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0]
+                        if (file) {
+                          setUploadingFile(key.id)
+                          try {
+                            await catalogueApi.uploadLicenseKeyFile(key.id, file)
+                            queryClient.invalidateQueries({ queryKey: ['catalogue-license-keys'] })
+                          } catch (error) {
+                            alert('Erreur lors de l\'upload: ' + (error as Error).message)
+                          } finally {
+                            setUploadingFile(null)
+                            e.target.value = ''
+                          }
+                        }
+                      }}
+                    />
+                    <label htmlFor={`file-upload-${key.id}`} className="upload-button">
+                      {uploadingFile === key.id ? 'Upload en cours...' : 'Uploader un fichier'}
+                    </label>
+                  </div>
+                )}
+              </div>
             )}
             {key.description && <p>{key.description}</p>}
           </div>
@@ -470,6 +497,177 @@ function EncryptionAlgorithmsTab({ queryClient }: { queryClient: any }) {
         ))}
         {algorithms?.length === 0 && <p>Aucun algorithme trouvé</p>}
       </div>
+    </div>
+  )
+}
+
+// Composant pour afficher un endpoint avec ses relations
+function EndpointCard({ endpoint, queryClient }: { endpoint: Endpoint; queryClient: any }) {
+  const [showRelations, setShowRelations] = useState(false)
+  const [showCreateRelation, setShowCreateRelation] = useState(false)
+  const [targetType, setTargetType] = useState('license_key')
+  const [targetId, setTargetId] = useState('')
+  const [relationType, setRelationType] = useState('uses')
+  const [description, setDescription] = useState('')
+
+  const { data: relations } = useQuery({
+    queryKey: ['catalogue-relations', endpoint.id],
+    queryFn: () => catalogueApi.listRelations({ source_id: endpoint.id, source_type: 'endpoint' }),
+    enabled: showRelations,
+  })
+
+  const { data: licenseKeys } = useQuery({
+    queryKey: ['catalogue-license-keys'],
+    queryFn: () => catalogueApi.listLicenseKeys(),
+    enabled: showCreateRelation && targetType === 'license_key',
+  })
+
+  const { data: softwareVersions } = useQuery({
+    queryKey: ['catalogue-software-versions'],
+    queryFn: () => catalogueApi.listSoftwareVersions(),
+    enabled: showCreateRelation && targetType === 'software_version',
+  })
+
+  const { data: algorithms } = useQuery({
+    queryKey: ['catalogue-encryption-algorithms'],
+    queryFn: () => catalogueApi.listEncryptionAlgorithms(),
+    enabled: showCreateRelation && targetType === 'encryption_algorithm',
+  })
+
+  const createRelationMutation = useMutation({
+    mutationFn: (data: any) => catalogueApi.createRelation(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['catalogue-relations', endpoint.id] })
+      setShowCreateRelation(false)
+      setTargetId('')
+      setDescription('')
+    },
+  })
+
+  const deleteRelationMutation = useMutation({
+    mutationFn: (id: string) => catalogueApi.deleteRelation(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['catalogue-relations', endpoint.id] })
+    },
+  })
+
+  const handleCreateRelation = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!targetId) return
+    createRelationMutation.mutate({
+      source_type: 'endpoint',
+      source_id: endpoint.id,
+      target_type: targetType,
+      target_id: targetId,
+      relation_type: relationType,
+      description: description || undefined,
+    })
+  }
+
+  const getTargetOptions = () => {
+    switch (targetType) {
+      case 'license_key':
+        return licenseKeys?.map(k => ({ id: k.id, name: k.name })) || []
+      case 'software_version':
+        return softwareVersions?.map(v => ({ id: v.id, name: `${v.name} ${v.version}` })) || []
+      case 'encryption_algorithm':
+        return algorithms?.map(a => ({ id: a.id, name: a.name })) || []
+      default:
+        return []
+    }
+  }
+
+  return (
+    <div className="item-card">
+      <h3>{endpoint.name}</h3>
+      <p><strong>Type:</strong> {endpoint.endpoint_type}</p>
+      {endpoint.address && <p><strong>Adresse:</strong> {endpoint.address}</p>}
+      {endpoint.description && <p>{endpoint.description}</p>}
+      
+      <div style={{ marginTop: '1rem' }}>
+        <button
+          onClick={() => setShowRelations(!showRelations)}
+          style={{ padding: '0.5rem 1rem', background: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+        >
+          {showRelations ? 'Masquer' : 'Voir'} les relations
+        </button>
+        <button
+          onClick={() => setShowCreateRelation(!showCreateRelation)}
+          style={{ padding: '0.5rem 1rem', background: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginLeft: '0.5rem' }}
+        >
+          {showCreateRelation ? 'Annuler' : 'Créer une relation'}
+        </button>
+      </div>
+
+      {showCreateRelation && (
+        <form onSubmit={handleCreateRelation} style={{ marginTop: '1rem', padding: '1rem', background: '#f9f9f9', borderRadius: '4px' }}>
+          <div className="form-group">
+            <label>Type de cible *</label>
+            <select value={targetType} onChange={(e) => { setTargetType(e.target.value); setTargetId('') }} required>
+              <option value="license_key">Clé de licence</option>
+              <option value="software_version">Version de logiciel</option>
+              <option value="encryption_algorithm">Algorithme de cryptage</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label>Cible *</label>
+            <select value={targetId} onChange={(e) => setTargetId(e.target.value)} required>
+              <option value="">Sélectionner...</option>
+              {getTargetOptions().map(opt => (
+                <option key={opt.id} value={opt.id}>{opt.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="form-group">
+            <label>Type de relation *</label>
+            <select value={relationType} onChange={(e) => setRelationType(e.target.value)} required>
+              <option value="uses">Utilise</option>
+              <option value="depends_on">Dépend de</option>
+              <option value="implements">Implémente</option>
+              <option value="contains">Contient</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label>Description</label>
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)} />
+          </div>
+          <button type="submit" disabled={createRelationMutation.isPending}>
+            {createRelationMutation.isPending ? 'Création...' : 'Créer'}
+          </button>
+        </form>
+      )}
+
+      {showRelations && (
+        <div className="relations-section">
+          <h4>Relations</h4>
+          {relations && relations.length > 0 ? (
+            <div className="relations-list">
+              {relations.map((rel) => (
+                <div key={rel.id} className="relation-item">
+                  <div className="relation-info">
+                    <p>
+                      <strong>{endpoint.name}</strong> {rel.relation_type} <strong>{rel.target_type}</strong> ({rel.target_id.substring(0, 8)}...)
+                    </p>
+                    {rel.description && <p style={{ fontSize: '0.9rem', color: '#666' }}>{rel.description}</p>}
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (confirm('Supprimer cette relation ?')) {
+                        deleteRelationMutation.mutate(rel.id)
+                      }
+                    }}
+                    style={{ padding: '0.25rem 0.5rem', background: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                  >
+                    Supprimer
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p>Aucune relation</p>
+          )}
+        </div>
+      )}
     </div>
   )
 }

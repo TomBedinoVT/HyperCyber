@@ -46,6 +46,7 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .app_data(web::Data::new(db.clone()))
             .app_data(web::Data::new(config.clone()))
+            .app_data(web::PayloadConfig::new(10_000_000)) // 10MB max payload
             .wrap(cors)
             .wrap(Logger::default())
             .service(
@@ -109,6 +110,9 @@ async fn main() -> std::io::Result<()> {
                             .route("/license-keys", web::get().to(entities::catalogue::handlers::list_license_keys))
                             .route("/license-keys", web::post().to(entities::catalogue::handlers::create_license_key))
                             .route("/license-keys/{id}/upload", web::post().to(entities::catalogue::handlers::upload_license_key_file))
+                            .route("/relations", web::get().to(entities::catalogue::handlers::list_catalogue_relations))
+                            .route("/relations", web::post().to(entities::catalogue::handlers::create_catalogue_relation))
+                            .route("/relations/{id}", web::delete().to(entities::catalogue::handlers::delete_catalogue_relation))
                             .route("/software-versions", web::get().to(entities::catalogue::handlers::list_software_versions))
                             .route("/software-versions", web::post().to(entities::catalogue::handlers::create_software_version))
                             .route("/encryption-algorithms", web::get().to(entities::catalogue::handlers::list_encryption_algorithms))

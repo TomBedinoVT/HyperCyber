@@ -169,3 +169,49 @@
   color: #333;
 }
 
+.upload-button {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+}
+
+.upload-button:hover {
+  background: #0056b3;
+}
+
+.relations-section {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 2px solid #e0e0e0;
+}
+
+.relations-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.relation-item {
+  background: #f9f9f9;
+  padding: 1rem;
+  border-radius: 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.relation-info {
+  flex: 1;
+}
+
+.relation-info strong {
+  color: #007bff;
+}
+

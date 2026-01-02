@@ -143,14 +143,30 @@ export const catalogueApi = {
     return response.data
   },
 
-  uploadLicenseKeyFile: async (id: string, file: File): Promise<void> => {
+  uploadLicenseKeyFile: async (id: string, file: File): Promise<LicenseKey> => {
     const formData = new FormData()
     formData.append('file', file)
-    await apiClient.post(`/catalogue/license-keys/${id}/upload`, formData, {
+    const response = await apiClient.post<LicenseKey>(`/catalogue/license-keys/${id}/upload`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
     })
+    return response.data
+  },
+
+  // Relations
+  listRelations: async (params?: {
+    source_type?: string
+    source_id?: string
+    target_type?: string
+    target_id?: string
+  }): Promise<CatalogueRelation[]> => {
+    const response = await apiClient.get<CatalogueRelation[]>('/catalogue/relations', { params })
+    return response.data
+  },
+
+  deleteRelation: async (id: string): Promise<void> => {
+    await apiClient.delete(`/catalogue/relations/${id}`)
   },
 
   // Software Versions

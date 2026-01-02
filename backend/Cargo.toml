@@ -11,6 +11,8 @@ actix-multipart = "0.6"
 futures = "0.3"
 futures-util = "0.3"
 async-trait = "0.1"
+aws-sdk-s3 = "1.0"
+aws-config = "1.0"
 sea-orm = { version = "0.12", features = ["runtime-tokio-native-tls", "sqlx-postgres", "with-chrono", "with-uuid"] }
 sqlx = { version = "0.7", features = ["runtime-tokio-native-tls", "postgres", "chrono", "uuid"] }
 tokio = { version = "1", features = ["full"] }
