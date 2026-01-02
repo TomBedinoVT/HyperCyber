@@ -1,0 +1,38 @@
+.rgpd-breaches-page {
+  padding: 2rem;
+}
+
+.severity-badge,
+.status-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  color: white;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.breaches-list table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.breaches-list th,
+.breaches-list td {
+  padding: 1rem;
+  text-align: left;
+  border-bottom: 1px solid #eee;
+}
+
+.breaches-list th {
+  background: #f5f5f5;
+  font-weight: 600;
+}
+
+.breaches-list tr:hover {
+  background: #f9f9f9;
+}
+

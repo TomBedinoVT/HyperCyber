@@ -1,0 +1,47 @@
+.rgpd-register-page {
+  padding: 2rem;
+}
+
+.entity-selector {
+  margin-bottom: 1.5rem;
+}
+
+.entity-selector label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 500;
+}
+
+.entity-selector select {
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+}
+
+.entries-list table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.entries-list th,
+.entries-list td {
+  padding: 1rem;
+  text-align: left;
+  border-bottom: 1px solid #eee;
+}
+
+.entries-list th {
+  background: #f5f5f5;
+  font-weight: 600;
+}
+
+.entries-list tr:hover {
+  background: #f9f9f9;
+}
+
